@@ -1,19 +1,37 @@
 # Importing stock libraries
+from numpy.core.arrayprint import str_format
 from numpy.core.fromnumeric import sort
 from datasets import CustomDataset
 from tqdm import tqdm
 import numpy as np
 import ast
+import datetime
+from datetime import timedelta
+import time
 import os
 import pandas as pd
 import torch
 import torch.nn as nn
+from torch.nn.parallel import DistributedDataParallel
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader, RandomSampler, SequentialSampler
+from torch.utils.data import DataLoader
 
 # Importing the T5 modules from huggingface/transformers
 from transformers import T5Tokenizer, T5ForConditionalGeneration
+from transformers import PegasusForConditionalGeneration, PegasusTokenizer
+from transformers import AutoModel, AutoTokenizer
+from transformers import BartForConditionalGeneration, BartTokenizer
+from transformers import EncoderDecoderModel
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+
+def convert_seconds(seconds):
+    sec = timedelta(seconds=seconds)
+    d = datetime.datetime(1, 1, 1) + sec
+    str_format = "%d days, %d hours, %d minutes, %d seconds" % (
+        d.day-1, d.hour, d.minute, d.second)
+    return str_format
 
 
 def train(epoch, tokenizer, model, device, loader, optimizer):
@@ -57,7 +75,7 @@ def validate(tokenizer, model, device, loader):
             ids = data["source_ids"].to(device, dtype=torch.long)
             mask = data["source_mask"].to(device, dtype=torch.long)
 
-            generated_ids = model.generate(
+            generated_ids = model.module.generate(
                 input_ids=ids,
                 attention_mask=mask,
                 max_length=320,
@@ -79,16 +97,19 @@ def validate(tokenizer, model, device, loader):
 def main():
 
     class config:
-        TRAIN_BATCH_SIZE = 10
-        VALID_BATCH_SIZE = 10
-        TRAIN_EPOCHS = 20
-        LEARNING_RATE = 1e-4
+        BATCH_SIZE = 30
+        TRAIN_EPOCHS = 50
+        LEARNING_RATE = 5e-4
         SEED = 42
         MAX_LEN = 128
         SUMMARY_LEN = 320
-        MODEL_PATH = "model_keywords2description_t5.pt"
-        PATH_DF = "/home/ubuntu/tqtrinh/description2keywords/data/japan/baseconnect_trans.csv"
+        # "google/roberta2roberta_L-24_discofuse"  # "t5-base"
+        MODEL_BASE = "t5-base"  # "google/pegasus-xsum"
+        MODEL_PATH = f"model_{MODEL_BASE.replace('/','-')}_key2des.pt"
+        PATH_DF = "/home/ubuntu/tqtrinh/description2keywords/data/japan/baseconnect_trans_full_filter.csv"
+        TEST_DF = "/home/ubuntu/tqtrinh/keywords2description/src_seq2seq_t5_model/final_model/epoch_39_pred_t5-base_300_samples.csv"
         FRAC_SAMPLE = 1
+        OUTPUT_TEST_PATH = f"pred_{MODEL_BASE.replace('/','-')}_filter_300_samples.csv"
 
     # Set random seeds and deterministic pytorch for reproducibility
     torch.manual_seed(config.SEED)  # pytorch random seed
@@ -96,7 +117,10 @@ def main():
     torch.backends.cudnn.deterministic = True
 
     # tokenzier for encoding the text
-    tokenizer = T5Tokenizer.from_pretrained("t5-base")
+    if config.MODEL_BASE == "t5-base":
+        tokenizer = T5Tokenizer.from_pretrained(config.MODEL_BASE)
+    else:
+        tokenizer = PegasusTokenizer.from_pretrained(config.MODEL_BASE)
 
     # Importing and Pre-Processing the domain data
     # Selecting the needed columns only.
@@ -105,72 +129,93 @@ def main():
     df = df.sample(frac=config.FRAC_SAMPLE).reset_index(drop=True)
     df["keywords"] = [", ".join(ast.literal_eval(keywords))
                       for keywords in df.keywords.values]
+    df["description"] = "description: " + df.description
     # df = df[["description", "keywords"]]
-    df.keywords = "summarize: " + df.keywords
+    df.keywords = "keywords: " + df.keywords
     print(df.head())
 
     # Creation of Dataset and Dataloader
-    # Defining the train size. So 80% of the data will be used for training and the rest will be used for validation.
     # train_size = 0.8  # 1-0.001
     # train_dataset = df.sample(frac=train_size, random_state=config.SEED)
-    # val_dataset = df.drop(train_dataset.index).reset_index(drop=True)
+    # test_dataset = df.drop(train_dataset.index).reset_index(drop=True)
     # train_dataset = train_dataset.reset_index(drop=True)
 
     train_dataset = df[:-300].reset_index(drop=True)
-    val_dataset = df[-300:].reset_index(drop=True)
+    test_dataset = df[-300:].reset_index(drop=True)
 
-    print("FULL Dataset: {}".format(df.shape))
-    print("TRAIN Dataset: {}".format(train_dataset.shape))
-    print("TEST Dataset: {}".format(val_dataset.shape))
+    # df.index = df["company_id"]
+    # test_dataset = pd.read_csv(config.TEST_DF, encoding="utf-8")
+    # test_dataset = df.loc[test_dataset.company_id, ].reset_index(drop=True)
+    # train_dataset = df.drop(test_dataset.index).reset_index(drop=True)
 
-    # Creating the Training and Validation dataset for further creation of Dataloader
+    print("FULL Dataset: {} \t Columns: {}".format(df.shape, df.columns))
+    print("TRAIN Dataset: {} \t Columns: {}".format(
+        train_dataset.shape, train_dataset.columns))
+    print("TEST Dataset: {} \t Columns: {}".format(
+        test_dataset.shape, test_dataset.columns))
+
+    # Creating the Training and Testing dataset for further creation of Dataloader
     training_set = CustomDataset(
         dataframe=train_dataset,
         tokenizer=tokenizer,
         source_len=config.MAX_LEN,
         summ_len=config.SUMMARY_LEN
     )
-    val_set = CustomDataset(
-        dataframe=val_dataset,
+    test_set = CustomDataset(
+        dataframe=test_dataset,
         tokenizer=tokenizer,
         source_len=config.MAX_LEN,
         summ_len=config.SUMMARY_LEN
     )
 
     # Defining the parameters for creation of dataloaders
-    # Creation of Dataloaders for testing and validation. This will be used down for training and validation stage for the model.
     training_loader = DataLoader(
         training_set,
-        batch_size=config.TRAIN_BATCH_SIZE,
+        batch_size=config.BATCH_SIZE,
         shuffle=True,
         num_workers=0
     )
-    val_loader = DataLoader(
-        val_set,
-        batch_size=config.VALID_BATCH_SIZE,
+    test_loader = DataLoader(
+        test_set,
+        batch_size=config.BATCH_SIZE,
         shuffle=False,
         num_workers=0
     )
-
+    print(f"\nModel base: {config.MODEL_BASE}")
     # Defining the model. We are using t5-base model and added a Language model layer on top for generation of Summary.
-    # Further this model is sent to device (GPU/TPU) for using the hardware.
-    model = T5ForConditionalGeneration.from_pretrained("t5-base")
+    if config.MODEL_BASE == "t5-base":
+        model = T5ForConditionalGeneration.from_pretrained(config.MODEL_BASE)
+    else:
+        model = PegasusForConditionalGeneration.from_pretrained(
+            config.MODEL_BASE)
+
     # Defining the optimizer that will be used to tune the weights of the network in the training session.
     model = model.to(device)
-    if os.path.exists(config.MODEL_PATH):
-        print("Load model and continue to training...")
-        model.load_state_dict(torch.load(
-            config.MODEL_PATH, map_location=device))
+    # if os.path.exists(config.MODEL_PATH):
+    #     print("============ LOAD MODEL AND CONTINUE TO TRAINING ============")
+    #     model.load_state_dict(torch.load(
+    #         config.MODEL_PATH, map_location=device))
+
+    print("============ LOAD MODEL AND CONTINUE TO TRAINING ============")
+    print("epoch_49_"+config.MODEL_PATH)
+    model.load_state_dict(torch.load(
+        "epoch_49_"+config.MODEL_PATH, map_location=device))
+
+    model = nn.DataParallel(model)
 
     optimizer = torch.optim.Adam(
         params=model.parameters(),
         lr=config.LEARNING_RATE
     )
     # Training loop
-    print("Initiating Fine-Tuning for the model on our dataset")
+    print('\n======== START TRAINING: {} ========\n'.format(
+        datetime.datetime.now().strftime("%d-%m-%y_%H:%M:%S")))
+    start_time = time.time()
 
     best_loss = np.Inf
-    for epoch in range(config.TRAIN_EPOCHS):
+    for epoch in range(50, 50+config.TRAIN_EPOCHS):
+        print(
+            f"========================= START EPOCHS {epoch} ==================")
         t_loss = train(epoch, tokenizer, model, device,
                        training_loader, optimizer)
         print(f"Epoch: {epoch}, Loss:  {t_loss}")
@@ -178,21 +223,35 @@ def main():
             print(f"---> Best loss training model is {t_loss}\n")
             best_loss = t_loss
             # Save model
-            torch.save(model.state_dict(), config.MODEL_PATH)
+            #torch.save(model.state_dict(), config.MODEL_PATH)
 
+            # torch.save(model.module.state_dict(), config.MODEL_PATH)
+            torch.save(model.module.state_dict(),
+                       f"epoch_{epoch}_{config.MODEL_PATH}")
             # INFERENCE
             # Validation loop and saving the resulting file with predictions and acutals in a dataframe.
             print(
                 "Run inference for 300 data with best model, and save result as dataframe")
             predictions, actuals = validate(
-                tokenizer, model, device, val_loader)
-            val_dataset["generated_description"] = predictions
-            # val_dataset["actual_description"] = actuals
+                tokenizer, model, device, test_loader)
+            test_dataset["generated_description"] = predictions
+            # test_dataset["actual_description"] = actuals
+            # test_dataset["keywords"] = [
+            #     ' '.join(keywords.split()[1:]) for keywords in test_dataset.keywords.values]
             sort_cols = ["company_id", "company_name", "keywords",
                          "description", "generated_description"]
-            val_dataset = val_dataset[sort_cols]
-            val_dataset.to_csv("predictions.csv")
+            test_dataset = test_dataset[sort_cols]
+            test_dataset.to_csv(
+                f'./output_pred/epoch_{epoch}_'+config.OUTPUT_TEST_PATH, index=False)
             print("Output Files generated for review")
+
+        end_time = time.time()
+        print('=============== END TRAINING EPOCHS {}: {} ==============='.format(
+            epoch, datetime.datetime.now().strftime("%d-%m-%y_%H:%M:%S")))
+        print("Time traning model is {}".format(
+            convert_seconds(end_time-start_time)))
+        print("Best loss is {}".format(best_loss))
+        print("====================================================================\n\n\n")
 
 
 if __name__ == "__main__":

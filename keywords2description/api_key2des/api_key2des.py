@@ -55,9 +55,9 @@ def inference(tokenizer, model, lst_keywords, config, device):
                      for g in generated_ids]
             predictions.extend(preds)
 
-    predictions = [' '.join(p.split())
-                   if p.split()[0].strip() != ':'
-                   else ' '.join(p.split()[1:])
+    predictions = [" ".join(p.split())
+                   if p.split()[0].strip() not in {":", "description", "description:"}
+                   else " ".join(p.split()[1:])
                    for p in predictions]
     return predictions
 
@@ -82,12 +82,14 @@ async def keywords2description(item: Feature):
             device=device
         )
         result = {
-            "lst_description": lst_des,
+            "result": [
+                {"keywords": ks, "description": d} for ks,d in zip(item.lst_keywords, lst_des)
+            ],
             "status": "OK"
         }
     except Exception as e:
         result = {
-            "lst_description": [],
+            "result": [],
             "status": "ERROR - "+str(e),
         }
     return JSONResponse(result)

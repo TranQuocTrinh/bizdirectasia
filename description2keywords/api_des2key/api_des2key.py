@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 app = FastAPI()
 
 
-def inference(model, lst_company_name, lst_description, mlb, tokenizer, threshold=0.5, k=5, device=torch.device("cuda:0")):
+def inference(model, lst_company_name, lst_description, mlb, tokenizer, threshold=0.4, mink=5, maxk=20, device=torch.device("cpu")):
     df = pd.DataFrame({"company_name": lst_company_name,
                       "description": lst_description})
 
@@ -35,15 +35,15 @@ def inference(model, lst_company_name, lst_description, mlb, tokenizer, threshol
 
             y_pred = mlb.inverse_transform(output > threshold)[0]
             y_pred = list(y_pred)
-            if len(y_pred) > 20:
-                indices = torch.topk(output, 20).indices
+            if len(y_pred) > maxk:
+                indices = torch.topk(output, maxk).indices
                 new_indices = torch.zeros_like(output)
                 new_indices[:, indices] = 1
                 y_pred = mlb.inverse_transform(new_indices)[0]
                 y_pred = list(y_pred)
 
-            elif len(y_pred) < k:
-                indices = torch.topk(output, k).indices
+            elif len(y_pred) < mink:
+                indices = torch.topk(output, mink).indices
                 new_indices = torch.zeros_like(output)
                 new_indices[:, indices] = 1
                 y_pred = mlb.inverse_transform(new_indices)[0]
@@ -53,9 +53,11 @@ def inference(model, lst_company_name, lst_description, mlb, tokenizer, threshol
     return lst_y_pred
 
 
-class MyItem(BaseModel):
+class Feature(BaseModel):
     lst_company_name: list
     lst_description: list
+    mink: int = 5
+    maxk: int = 20
 
 
 @app.get("/")
@@ -64,20 +66,23 @@ async def home():
 
 
 @app.post("/description2keywords")
-async def description2keywords(item: MyItem):
+async def description2keywords(item: Feature):
+    print(item)
     result = inference(
         model=model,
         lst_company_name=item.lst_company_name,
         lst_description=item.lst_description,
         mlb=mlb,
         tokenizer=tokenizer,
+        mink=item.mink,
+        maxk=item.maxk,
         device=device
     )
     return JSONResponse(result)
 
 
 if __name__ == "__main__":
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
     config = dict(
         model_base="bert-base-uncased",
         model_path="./final_model/model_BERT2ML_classification_name-add-des_300k.pt",

@@ -1,4 +1,3 @@
-from re import S
 from torch.utils.data import Dataset
 import pandas as pd
 import torch

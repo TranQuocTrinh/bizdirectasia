@@ -10,5 +10,5 @@ item = {
 }
 
 r = requests.post(url='http://127.0.0.1:6565/keywords2description', json=item)
-print(r.content)
-# print(json.loads(r.content))
+# print(r.content)
+print(json.dumps(json.loads(r.content), indent=4))

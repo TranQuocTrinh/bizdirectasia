@@ -653,7 +653,14 @@ if __name__ == "__main__":
     #     to_idx = number_samples*(int(args.thread)+1)
     # lst_domain = lst_domain[from_idx:to_idx]
 
-    df = pd.DataFrame([json.load(open(os.path.join(args.cache_text_dir, f))) for f in os.listdir(args.cache_text_dir)])
+    df, error = [], []
+    for f in os.listdir(args.cache_text_dir):
+        try:
+            df.append(json.load(open(os.path.join(args.cache_text_dir, f))))
+        except:
+            error.append(os.path.join(args.cache_text_dir, f))
+    df = pd.DataFrame(df)
+    print("Work:", df.shape, "error:", len(error))
 
     tagger = create_fair_pretrained()
     # df = get_data_es(size=1000)
@@ -662,7 +669,7 @@ if __name__ == "__main__":
     count_company_name, count_country, count_address = 0, 0, 0
     for i,r in bar:
         website = r["website"]
-        text = r["text"]
+        text = r["text"] if len(r["text"]) < 4096 else r["text"][:4096]
         fpath = f"{args.cache_extract_dir}{website.replace('/', '-')}.json"
         if os.path.exists(fpath):
             res = json.load(open(fpath))
@@ -703,4 +710,12 @@ if __name__ == "__main__":
     df = df.loc[idx, ].reset_index(drop=True)
     df = df[["website", "text", "company_name_extract", "country_extract", "address_extract"]]
     print(f"Final extract report: \ndf.shape: {df.shape}")
+    
+    def remove_non_ascii(text):
+        import string
+        printable = set(string.printable)
+        return ''.join(filter(lambda x: x in printable, text))
+    for col in ["text", "company_name_extract", "country_extract", "address_extract"]:
+        df[col] = df[col].apply(remove_non_ascii)
+
     df.to_csv(args.output_csv_path, index=False)

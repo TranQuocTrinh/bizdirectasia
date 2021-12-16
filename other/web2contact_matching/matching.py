@@ -173,12 +173,30 @@ from scipy.sparse import csr_matrix
 import pandas as pd
 from tqdm import tqdm
 import os
+import string
 import sparse_dot_topn.sparse_dot_topn as ct
 
 
-def preprocess_cname(company_name):
+def preprocess_cname(company_name, country):
     company_name = str(company_name).lower()
-    common = {'limited', 'ltd', '&', 'holdings', 'investments', 'trustee', 'services', 'trustees', 'nz', 'company', 'properties', 'and', 'the', 'new', 'group', 'property', 'zealand', '(nz)'}
+    company_name = re.sub(r'[^\w\s]', '', company_name)
+    # common = {'limited', 'ltd', '&', 'snd', 'bhd', 'holdings', 'investments', 'trustee', 'services', 'trustees', 'nz', 'company', 'properties', 'group', 'property', 'zealand', '(nz)'}
+    dct_common = {
+        'Cambodia': {'ltd.', 'kh', 'construction', 'trading', 'ltd', 'co.,', 'export', 'development', 'investment', 'international', 'import'}, 
+        'Laos': {'construction', 'ltd', 'individual', 'sole', 'co.,', 'la', 'lao', 'trading', 'and', 'co.,ltd', 'import-export'}, 
+        'Thailand': {'ltd.', 'service', 'co.,', 'co.,ltd.', 'and', 'th', 'partnership', '(thailand)', 'company', 'limited', 'จำกัด'}, 
+        'Hong Kong': {'trading', 'group', 'co.,', 'development', 'investment', '(hk)', 'hong', 'international', 'company', 'hk', 'limited'}, 
+        'Philippines': {'inc.', 'store', 'trading', 'inc', 'corporation', 'ph', 'shop', 'corp.', 'enterprises', 'services', 'and'}, 
+        'Singapore': {'ltd.', 'llp', 'pte', 'trading', 'ltd', 'pte.', 'international', 'services', 'limited', 'engineering', 'sg'}, 
+        'Malaysia': {'bhd.', 'my', 'development', 'holdings', 'bhd', 'services', '(m)', 'trading', 'resources', 'sdn.', 'engineering'}, 
+        'Taiwan': {'store', 'ltd.', 'tw', 'line', 'co.,', 'enterprise', 'shop', 'engineering', 'international', 'technology', 'industrial'}, 
+        'Indonesia': {'abadi', 'perkasa', 'indonesia', 'jaya', 'id', 'prima', 'sejahtera', 'utama', 'karya', 'mandiri', 'mitra'}, 
+        'Vietnam': {'thuong', 'tnhh', 'mai', 'ty', 'vn', 'cong', 'stock', 'trading', 'company', 'limited', 'thanh'}, 
+        'Korea': {'ltd.', 'farming', 'construction', 'tech', 'association', 'kr', 'co.,', 'co.,ltd.', 'industry', 'korea', 'co.'}, 
+        'Japan': {'inc.', 'ltd.', 'joint', 'construction', 'association', 'jp', 'co.,', 'corporation', 'industry', 'company', 'limited'}, 
+        'Australia': {'au', 'ltd', 'the', 'superannuation', 'for', 'family', 'pty', 'trustee', 'trust', 'pty.', 'fund'}
+        }
+    common = dct_common[country]
     company_name = " ".join([w for w in company_name.split(" ") if w not in common])
     return company_name
 
@@ -298,7 +316,7 @@ class StringMatch():
 
 
 
-def get_data_es(size, from_id=0):
+def get_data_es(country, size, from_id=0):
     import requests
     import json
 
@@ -332,7 +350,7 @@ def get_data_es(size, from_id=0):
             },
             {
             "match": {
-                "country_name": "New Zealand"
+                "country_name": country
             }
             }
         ]
@@ -374,7 +392,7 @@ def get_data_country(country):
         os.system("clear")
         print("Length df_enrich:", len(all_company))
         size = 10000
-        temp = get_data_es(size, from_id)
+        temp = get_data_es(country, size, from_id)
         if len(temp) > 0:
             all_company.extend(temp)
             from_id = temp[-1]["id"]
@@ -386,7 +404,7 @@ def get_data_country(country):
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--csv_biz_path", default="biz_newzealand.csv", type=str,required=False, help="Path of bizdirect data",)
+    parser.add_argument("--csv_biz_path", default="", type=str,required=False, help="Path of bizdirect data",)
     parser.add_argument("--csv_enrich_path", default="enrich_newzealand.csv", type=str,required=False, help="Path of enrich data",)
     parser.add_argument("--country", default="New Zealand", type=str,required=False, help="Country runing",)
     parser.add_argument("--output_final_csv_path", default="result_matching.csv", type=str,required=False, help="Country runing",)
@@ -424,7 +442,7 @@ def main():
     match_df = cname_match.match()
     t1 = datetime.datetime.now()
 
-    full_time_tfidf = (t1-t0).total_seconds()
+    full_time_tfidf = int((t1-t0).total_seconds())
     full_time_tfidf = str(datetime.timedelta(seconds=full_time_tfidf))
     print(f"Total time: {full_time_tfidf}")
 
@@ -433,8 +451,8 @@ def main():
         new_scores = []
         dif, le = [], []
         for i,r in match_df.iterrows():
-            src_process = preprocess_cname(r["company_name"])
-            tar_process = preprocess_cname(r["candidate_company_name"])
+            src_process = preprocess_cname(r["company_name"], args.country)
+            tar_process = preprocess_cname(r["candidate_company_name"], args.country)
             src = len(src_process)
             tar = len(tar_process)
             if src_process == tar_process:
@@ -472,7 +490,7 @@ def main():
         results.append(res)
 
     dfout = pd.DataFrame(results)
-    dfout = dfout[dfout["final_score"]> args.threshold]
+    dfout = dfout[dfout["final_score"]>=args.threshold]
     dfout = dfout[['id', 'country_name', 'website', 'company_name', 'company_name_extract', 'website_matching', 'final_score']]
     dfout.to_csv(args.output_final_csv_path, index=False)
     print(f"Result save at path: {args.output_final_csv_path}")
@@ -482,5 +500,21 @@ def main():
     print(f"Total company of bizdirect {dfbiz.shape[0]}")
     print(f"Total number of matching websites {dfout.shape[0]} (with threshold={args.threshold}), of which {dfout[dfout['website'].isnull()==False].shape[0]} already have websites, in the end there are {dfout[dfout['website'].isnull()].shape[0]} matched websites.")
     
+
+def get_word_common(df, code):
+    from collections import Counter
+    tmp = []
+    for cname in df.company_name:
+        tmp.extend(str(cname).lower().split(" "))
+    count = dict(Counter(tmp))
+    sor = sorted([(k,v) for k,v in count.items()], key=lambda x: x[1], reverse=True)
+    sor = [x for x in sor if len(x[0]) > 1]
+    common = set([x[0] for x in sor[:10]])
+    common.add(code)
+    return common
+
+
 if __name__ == '__main__':
     main()
+
+

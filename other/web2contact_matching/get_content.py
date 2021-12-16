@@ -81,7 +81,15 @@ def count_results(dir_path="cache_text/", total=333683):
 
         percent = int(finished/total*100)
 
-        have_result = [json.load(open(os.path.join(dir_path, f))) for f in tqdm(files)]
+        have_result = []
+        error = 0
+        for f in tqdm(files):
+            filecachepath = os.path.join(dir_path, f)
+            try:
+                have_result.append(json.load(open(filecachepath)))
+            except:
+                os.system(f"rm {filecachepath}")
+                error += 1
         have_result = [d for d in have_result if d["text"]]
         have_result = len(have_result)
 
@@ -101,6 +109,7 @@ def count_results(dir_path="cache_text/", total=333683):
         print()        
         print(f"Have result: {have_result}")
         print(f"Percent: {have_result_precent}%")
+        print(f"Error: {error}")
         print(f"Estimated time remaining: {remain_time}")
         time.sleep(5)
         if finished >= total:

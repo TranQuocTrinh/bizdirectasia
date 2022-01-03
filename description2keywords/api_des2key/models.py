@@ -1,19 +1,17 @@
-from transformers import BertModel, RobertaModel, AlbertModel, AutoModel
+from transformers import BertModel, BertConfig
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import config
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# Models
-
-
+# Model
 class Model(nn.Module):
 
     def __init__(self, num_classes=1000):
         super(Model, self).__init__()
-        self.bert = BertModel.from_pretrained(config["model_base"])
+        confbert = BertConfig()
+        self.bert = BertModel(confbert)
         self.classifier = nn.Linear(768, num_classes)
         self.sigmoid = nn.Sigmoid()
 

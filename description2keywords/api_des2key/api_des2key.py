@@ -2,8 +2,6 @@ import torch
 import joblib
 import pandas as pd
 from models import Model
-from utils import config
-import torch.nn as nn
 from tqdm import tqdm
 from transformers import BertTokenizer
 from datasets import DES2KEYDataset
@@ -93,8 +91,7 @@ if __name__ == "__main__":
     mlb = joblib.load(config["encoder_label"])
 
     model = Model(num_classes=len(mlb.classes_))
-    model.load_state_dict(torch.load(
-        config["model_path"], map_location=device))
+    print(model.load_state_dict(torch.load(config["model_path"], map_location=device)))
     model.to(device)
     model.eval()
 

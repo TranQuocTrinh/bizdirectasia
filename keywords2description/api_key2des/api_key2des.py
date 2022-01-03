@@ -1,7 +1,7 @@
 import torch
 import pandas as pd
 from tqdm import tqdm
-from transformers import T5ForConditionalGeneration, T5Tokenizer
+from transformers import T5ForConditionalGeneration, T5Tokenizer, T5Config
 from torch.utils.data import DataLoader
 
 from datasets import CustomDataset
@@ -104,6 +104,7 @@ if __name__ == "__main__":
         MAX_LEN = 128
         SUMMARY_LEN = 320
         MODEL_BASE = "t5-base"
+        MODEL_DIR = "final_model"
         MODEL_PATH = "final_model/epoch_95_model_t5-base_key2des.pt"
     if device == torch.device("cpu"):
         print("Use CPU for inference...")
@@ -113,9 +114,10 @@ if __name__ == "__main__":
 
     tokenizer = T5Tokenizer.from_pretrained(config.MODEL_BASE)
 
-    model = T5ForConditionalGeneration.from_pretrained(config.MODEL_BASE)
+    modelconfig = T5Config.from_pretrained(config.MODEL_DIR)
+    model = T5ForConditionalGeneration(modelconfig)
+    print(model.load_state_dict(torch.load(config.MODEL_PATH, map_location=device)))
     model.to(device)
-    model.load_state_dict(torch.load(config.MODEL_PATH, map_location=device))
 
     model.eval()
 

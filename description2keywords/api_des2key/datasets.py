@@ -2,8 +2,6 @@ import pandas as pd
 import torch
 import ast
 from torch.utils.data import Dataset
-from transformers import BertTokenizer, RobertaTokenizer, AlbertTokenizer, AutoTokenizer
-from utils import config
 
 
 class DES2KEYDataset(Dataset):

@@ -160,7 +160,10 @@ def main():
     for i, url in enumerate(url_list):
         content = get_text_from_url(url, paragraph=True)
         # summary = summarize(model, tokenizer, [text])[0]
-        summary_fb = summarize_fb(model_fb, content)
+        try:
+            summary_fb = summarize_fb(model_fb, content)
+        except:
+            summary_fb, analyze, noun_phrase_list = "", [], []
         res, analyze, noun_phrase_list = analyze_text_syntax(content)
         df["website"].append(url)
         df["content"].append(content)

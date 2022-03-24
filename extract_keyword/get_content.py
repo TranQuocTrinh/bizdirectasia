@@ -153,7 +153,7 @@ def main():
     df = {"website": [], "content": [], "summary": [], "analyze": [], "noun_phrase_list": []}
     # url_list = ["https://bizdirectasia.com/", "https://stackoverflow.com/"]
     url_list = open("/home/ubuntu/tqtrinh/web2contact_matching/domain/networksdb.io-domains_sg.txt").read()
-    url_list = [url for url in url_list.split("\n") if url != ""][:100]
+    url_list = [url for url in url_list.split("\n") if url != ""][:1000]
     model_fb = load_model_fb()
     # model, tokenizer = load_model_tokenizer("sshleifer/distilbart-cnn-12-6")
 

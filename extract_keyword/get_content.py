@@ -110,33 +110,68 @@ def temp():
     )
 
 
-def main():
-    url = "https://bizdirectasia.com/"
-    text = get_text_from_url(url, paragraph=True)
-    model, tokenizer = load_model_tokenizer("sshleifer/distilbart-cnn-12-6")
-    summary = summarize(model, tokenizer, [text])[0]
-
-
-    model_fb = load_model_fb()
-    summary_fb = summarize_fb(model_fb, text)
-
-
 from google.cloud import language
 from os import environ
-environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join("web-architecture-migration-quoc-trinh.json")
+environ["GOOGLE_APPLICATION_CREDENTIALS"] = "web-architecture-migration-quoc-trinh.json"
 def analyze_text_syntax(text):
     client = language.LanguageServiceClient()
     document = language.Document(content=text, type_=language.Document.Type.PLAIN_TEXT)
 
     response = client.analyze_syntax(document=document)
+    
+    # convert response to json
+    import json
+    result_json = response.__class__.to_json(response)
+    result_dict = json.loads(result_json)
 
-    fmts = "{:10}: {}"
-    print(fmts.format("sentences", len(response.sentences)))
-    print(fmts.format("tokens", len(response.tokens)))
-    for token in response.tokens:
-        print(fmts.format(token.part_of_speech.tag.name, token.text.content))
-    return response
+    # fmts = "{:10}: {}"
+    # print(fmts.format("sentences", len(response.sentences)))
+    # print(fmts.format("tokens", len(response.tokens)))
+    # for i, token in enumerate(response.tokens):
+    #     print(fmts.format(token.part_of_speech.tag.name, token.text.content))
+    analyze = []
+    for i, token in enumerate(response.tokens):
+        analyze.append((token.part_of_speech.tag.name, token.text.content))
+
+    noun_phrase_list = []
+    current_idx = 0
+    for i,token in enumerate(response.tokens):
+        if token.part_of_speech.tag.name in {"NUM", "NOUN"} and i >= current_idx:
+            j = i + 1
+            while j < len(response.tokens) and response.tokens[j].part_of_speech.tag.name == "NOUN" and response.tokens[j].text.content != ".":
+                j += 1
+            lst_noun = [token.text.content for token in response.tokens[i:j]]
+            if len(lst_noun) > 1:
+                noun_phrase_list.append(" ".join(lst_noun))
+            current_idx = j
+    print(noun_phrase_list)
+
+    return result_dict, analyze, noun_phrase_list
+
+
+def main():
+    df = {"website": [], "content": [], "summary": [], "analyze": [], "noun_phrase_list": []}
+    # url_list = ["https://bizdirectasia.com/", "https://stackoverflow.com/"]
+    url_list = open("/home/ubuntu/tqtrinh/web2contact_matching/domain/networksdb.io-domains_sg.txt").read()
+    url_list = [url for url in url_list.split("\n") if url != ""][:100]
+    model_fb = load_model_fb()
+    # model, tokenizer = load_model_tokenizer("sshleifer/distilbart-cnn-12-6")
+
+    for i, url in enumerate(url_list):
+        content = get_text_from_url(url, paragraph=True)
+        # summary = summarize(model, tokenizer, [text])[0]
+        summary_fb = summarize_fb(model_fb, content)
+        res, analyze, noun_phrase_list = analyze_text_syntax(content)
+        df["website"].append(url)
+        df["content"].append(content)
+        df["summary"].append(summary_fb)
+        df["analyze"].append(analyze)
+        df["noun_phrase_list"].append(noun_phrase_list)
+    
+    df = pd.DataFrame(df)
+    print(df)
+    df.to_csv("100_urls_singapore_extract_keyword.csv")
+    import ipdb; ipdb.set_trace()
 
 if __name__ == "__main__":
-    response = analyze_text_syntax("""BizDirect Asia is largest B2B contacts and companies data portal in Asia encompassed more than 17 millions companies and 50 millions business contacts across 1,000+ industries in 16 countries in Asia. Updated in real-time by our proprietary AI-powered system.Inside BizDirectAsia's platform are a network of AI and NLP algorithms to identify, verify and update information of a particular company, weed out inaccurate data and continuously refresh our data. It’s a platform that delivers Targeting Intelligence to address a range of business needs creating a single view of the market.""")
-    import ipdb; ipdb.set_trace()
+    main()

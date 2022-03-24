@@ -122,6 +122,7 @@ def main():
 
 
 from google.cloud import language
+from os import environ
 environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join("web-architecture-migration-quoc-trinh.json")
 def analyze_text_syntax(text):
     client = language.LanguageServiceClient()
@@ -134,8 +135,8 @@ def analyze_text_syntax(text):
     print(fmts.format("tokens", len(response.tokens)))
     for token in response.tokens:
         print(fmts.format(token.part_of_speech.tag.name, token.text.content))
-
+    return response
 
 if __name__ == "__main__":
-    d = analyze_text_syntax("""BizDirect Asia is largest B2B contacts and companies data portal in Asia encompassed more than 17 millions companies and 50 millions business contacts across 1,000+ industries in 16 countries in Asia. Updated in real-time by our proprietary AI-powered system.Inside BizDirectAsia's platform are a network of AI and NLP algorithms to identify, verify and update information of a particular company, weed out inaccurate data and continuously refresh our data. It’s a platform that delivers Targeting Intelligence to address a range of business needs creating a single view of the market.""")
+    response = analyze_text_syntax("""BizDirect Asia is largest B2B contacts and companies data portal in Asia encompassed more than 17 millions companies and 50 millions business contacts across 1,000+ industries in 16 countries in Asia. Updated in real-time by our proprietary AI-powered system.Inside BizDirectAsia's platform are a network of AI and NLP algorithms to identify, verify and update information of a particular company, weed out inaccurate data and continuously refresh our data. It’s a platform that delivers Targeting Intelligence to address a range of business needs creating a single view of the market.""")
     import ipdb; ipdb.set_trace()

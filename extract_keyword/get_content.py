@@ -187,7 +187,7 @@ def main():
         df["noun_phrase_list"].append(noun_phrase_list)
         bar.set_description(f"{count}/{len(url_list)}")
         bar.set_postfix(get_content_time=f"{sum(get_content_time)/len(get_content_time):.2f}", extract_time=f"{sum(extract_time)/len(extract_time):.2f}")
-        df.to_csv("100_urls_singapore_extract_keyword.csv", index=False)
+        pd.DataFrame(df).to_csv("100_urls_singapore_extract_keyword.csv", index=False)
     
     df = pd.DataFrame(df)
     print(df)

@@ -81,13 +81,14 @@ def summarize(model, tokenizer, lst_text):
     generated = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
     return generated
 
-def load_model_fb():
-    from transformers import pipeline
+def load_model_tokenizer_fb():
+    from transformers import pipeline, AutoTokenizer
     summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
-    return summarizer
+    tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large-cnn")
+    return summarizer, tokenizer
 
-def summarize_fb(summarizer, text):
-    return summarizer(text, max_length=150, min_length=100, do_sample=False)
+def summarize_fb(summarizer, text, min_length=100, max_length=150):
+    return summarizer(text, max_length=max_length, min_length=min_length, do_sample=False)
 
 def temp():
     from transformers import PegasusForConditionalGeneration, PegasusTokenizer
@@ -154,20 +155,30 @@ def main():
     # url_list = ["https://bizdirectasia.com/", "https://stackoverflow.com/"]
     url_list = open("/home/ubuntu/tqtrinh/web2contact_matching/domain/networksdb.io-domains_sg.txt").read()
     url_list = [url for url in url_list.split("\n") if url != ""][:1000]
-    model_fb = load_model_fb()
+    model_fb, tokenizer_fb = load_model_tokenizer_fb()
     # model, tokenizer = load_model_tokenizer("sshleifer/distilbart-cnn-12-6")
-
-    bar = tqdm(enumerate(url_list))
+    get_content_time, extract_time = [], []
+    import time
+    bar = tqdm(enumerate(url_list), total=len(url_list))
     count = 0
     for i, url in bar:
+        start = time.time()
         content = get_text_from_url(url, paragraph=True)
+        get_content_time.append(time.time() - start)
         # summary = summarize(model, tokenizer, [text])[0]
+        start = time.time()
         try:
-            summary_fb = summarize_fb(model_fb, content)
+            len_tokens = len(tokenizer_fb.tokenize(content))
+            if len_tokens < 100:
+                summary_fb = {"summary_text": content}
+            else:
+                summary_fb = summarize_fb(model_fb, content)
+
             res, analyze, noun_phrase_list = analyze_text_syntax(summary_fb["summary_text"])
             count += 1
         except:
             res, summary_fb, analyze, noun_phrase_list = {}, {"summary_text":""}, [], []
+        extract_time.append(time.time() - start)
 
         df["website"].append(url)
         df["content"].append(content)
@@ -175,10 +186,12 @@ def main():
         df["analyze"].append(analyze)
         df["noun_phrase_list"].append(noun_phrase_list)
         bar.set_description(f"{count}/{len(url_list)}")
+        bar.set_postfix(get_content_time=f"{sum(get_content_time)/len(get_content_time):.2f}", extract_time=f"{sum(extract_time)/len(extract_time):.2f}")
+        df.to_csv("100_urls_singapore_extract_keyword.csv", index=False)
     
     df = pd.DataFrame(df)
     print(df)
-    df.to_csv("100_urls_singapore_extract_keyword.csv")
+    df.to_csv("100_urls_singapore_extract_keyword.csv", index=False)
     import ipdb; ipdb.set_trace()
 
 if __name__ == "__main__":

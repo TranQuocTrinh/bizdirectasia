@@ -144,7 +144,7 @@ def analyze_text_syntax(text):
             if len(lst_noun) > 1:
                 noun_phrase_list.append(" ".join(lst_noun))
             current_idx = j
-    print(noun_phrase_list)
+    # print(noun_phrase_list)
 
     return result_dict, analyze, noun_phrase_list
 
@@ -157,20 +157,24 @@ def main():
     model_fb = load_model_fb()
     # model, tokenizer = load_model_tokenizer("sshleifer/distilbart-cnn-12-6")
 
-    for i, url in enumerate(url_list):
+    bar = tqdm(enumerate(url_list))
+    count = 0
+    for i, url in bar:
         content = get_text_from_url(url, paragraph=True)
         # summary = summarize(model, tokenizer, [text])[0]
         try:
             summary_fb = summarize_fb(model_fb, content)
-            res, analyze, noun_phrase_list = analyze_text_syntax(content)
+            res, analyze, noun_phrase_list = analyze_text_syntax(summary_fb["summary_text"])
+            count += 1
         except:
-            res, summary_fb, analyze, noun_phrase_list = {}, "", [], []
+            res, summary_fb, analyze, noun_phrase_list = {}, {"summary_text":""}, [], []
 
         df["website"].append(url)
         df["content"].append(content)
-        df["summary"].append(summary_fb)
+        df["summary"].append(summary_fb["summary_text"])
         df["analyze"].append(analyze)
         df["noun_phrase_list"].append(noun_phrase_list)
+        bar.set_description(f"{count}/{len(url_list)}")
     
     df = pd.DataFrame(df)
     print(df)

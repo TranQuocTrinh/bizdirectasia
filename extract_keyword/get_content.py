@@ -162,9 +162,10 @@ def main():
         # summary = summarize(model, tokenizer, [text])[0]
         try:
             summary_fb = summarize_fb(model_fb, content)
+            res, analyze, noun_phrase_list = analyze_text_syntax(content)
         except:
-            summary_fb, analyze, noun_phrase_list = "", [], []
-        res, analyze, noun_phrase_list = analyze_text_syntax(content)
+            res, summary_fb, analyze, noun_phrase_list = {}, "", [], []
+
         df["website"].append(url)
         df["content"].append(content)
         df["summary"].append(summary_fb)

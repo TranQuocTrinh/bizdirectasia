@@ -83,8 +83,10 @@ def summarize(model, tokenizer, lst_text):
 
 def load_model_tokenizer_fb():
     from transformers import pipeline, AutoTokenizer
+    print("Load model summary...")
     summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
     tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large-cnn")
+    print("Done loading model summary!")
     return summarizer, tokenizer
 
 def summarize_fb(summarizer, text, min_length=100, max_length=150):
@@ -150,6 +152,10 @@ def analyze_text_syntax(text):
     return result_dict, analyze, noun_phrase_list
 
 
+
+from text_preprocessing import text_preprocessing
+
+
 def main():
     df = {"website": [], "content": [], "summary": [], "analyze": [], "noun_phrase_list": []}
     # url_list = ["https://bizdirectasia.com/", "https://stackoverflow.com/"]
@@ -164,16 +170,15 @@ def main():
     for i, url in bar:
         start = time.time()
         content = get_text_from_url(url, paragraph=True)
+        content = text_preprocessing(content) if isinstance(content, str) else ""
         get_content_time.append(time.time() - start)
+        
         # summary = summarize(model, tokenizer, [text])[0]
         start = time.time()
-        try:
-            len_tokens = len(tokenizer_fb.tokenize(content))
-            if len_tokens < 100:
-                summary_fb = {"summary_text": content}
-            else:
-                summary_fb = summarize_fb(model_fb, content)
+        len_tokens = len(tokenizer_fb.tokenize(content))
+        summary_fb = {"summary_text": content} if len_tokens < 150 else summarize_fb(model_fb, content)
 
+        try:
             res, analyze, noun_phrase_list = analyze_text_syntax(summary_fb["summary_text"])
             count += 1
         except:
@@ -185,14 +190,13 @@ def main():
         df["summary"].append(summary_fb["summary_text"])
         df["analyze"].append(analyze)
         df["noun_phrase_list"].append(noun_phrase_list)
-        bar.set_description(f"{count}/{len(url_list)}")
-        bar.set_postfix(get_content_time=f"{sum(get_content_time)/len(get_content_time):.2f}", extract_time=f"{sum(extract_time)/len(extract_time):.2f}")
+        bar.set_description(f"Extracting... {count}/{len(url_list)}")
+        bar.set_postfix(get_content_time=f"{sum(get_content_time)/len(get_content_time):.2f}", summurize_extract_time=f"{sum(extract_time)/len(extract_time):.2f}")
         pd.DataFrame(df).to_csv("100_urls_singapore_extract_keyword.csv", index=False)
     
     df = pd.DataFrame(df)
     print(df)
     df.to_csv("100_urls_singapore_extract_keyword.csv", index=False)
-    import ipdb; ipdb.set_trace()
 
 if __name__ == "__main__":
     main()

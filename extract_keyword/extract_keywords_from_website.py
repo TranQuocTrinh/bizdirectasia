@@ -141,7 +141,7 @@ def get_noun_phrases(response):
     noun_phrase_list = []
     current_idx = 0
     for i,token in enumerate(response.tokens):
-        if token.part_of_speech.tag.name in {"NUM", "NOUN"} and i >= current_idx:
+        if token.part_of_speech.tag.name in {"NOUN"} and i >= current_idx:
             j = i + 1
             while j < len(response.tokens) and response.tokens[j].part_of_speech.tag.name == "NOUN" and response.tokens[j].text.content != ".":
                 j += 1
@@ -176,9 +176,13 @@ def main():
         
         # summary = summarize(model, tokenizer, [text])[0]
         start = time.time()
-        len_tokens = len(tokenizer_fb.tokenize(content))
-        summary_fb = {"summary_text": content} if len_tokens < 150 else summarize_fb(model_fb, content)
-        summary_or_not = "no_summary" if len_tokens < 150 else "summary"
+        tokens = tokenizer_fb.tokenize(content)
+        content = " ".join(tokens[:2000])
+        try:
+            summary_fb = {"summary_text": content} if len(tokens) < 150 else summarize_fb(model_fb, content)
+        except:
+            import ipdb; ipdb.set_trace()
+        summary_or_not = "no_summary" if len(tokens) < 150 else "summary"
 
         # try:
         res, _ = analyze_text_syntax(summary_fb["summary_text"])
@@ -196,7 +200,7 @@ def main():
             "noun_phrase_list": noun_phrase_list
         }
         df.append(row)
-
+        count += len(noun_phrase_list) > 0
         bar.set_description(f"Extracting... {count}/{len(url_list)}")
         bar.set_postfix(get_content_time=f"{sum(get_content_time)/len(get_content_time):.2f}", summurize_extract_time=f"{sum(extract_time)/len(extract_time):.2f}")
         pd.DataFrame(df).to_csv("100_urls_singapore_extract_keyword.csv", index=False)

@@ -8,7 +8,7 @@ import os
 import pandas as pd
 
 
-def get_text_from_url(url, output_dir=None, timeout=20, paragraph=False):
+def get_content_from_url(url, output_dir=None, timeout=20, paragraph=False):
     def get_parapgraphs(soup):
         paragraphs = []
         paragraphs_set = set()
@@ -27,7 +27,6 @@ def get_text_from_url(url, output_dir=None, timeout=20, paragraph=False):
                 return text
             except:
                 pass
-            
             try:
                 response = requests.get("https://"+url, timeout=timeout)
                 soup = BeautifulSoup(response.content, 'html.parser')
@@ -90,7 +89,7 @@ def load_model_tokenizer_fb():
     return summarizer, tokenizer
 
 def summarize_fb(summarizer, text, min_length=100, max_length=150):
-    return summarizer(text, max_length=max_length, min_length=min_length, do_sample=False)
+    return summarizer(text, max_length=max_length, min_length=min_length, do_sample=False)[0]
 
 def temp():
     from transformers import PegasusForConditionalGeneration, PegasusTokenizer
@@ -132,10 +131,13 @@ def analyze_text_syntax(text):
     # print(fmts.format("tokens", len(response.tokens)))
     # for i, token in enumerate(response.tokens):
     #     print(fmts.format(token.part_of_speech.tag.name, token.text.content))
+    return response, result_dict
+
+
+def get_noun_phrases(response):
     analyze = []
     for i, token in enumerate(response.tokens):
         analyze.append((token.part_of_speech.tag.name, token.text.content))
-
     noun_phrase_list = []
     current_idx = 0
     for i,token in enumerate(response.tokens):
@@ -147,9 +149,8 @@ def analyze_text_syntax(text):
             if len(lst_noun) > 1:
                 noun_phrase_list.append(" ".join(lst_noun))
             current_idx = j
-    # print(noun_phrase_list)
 
-    return result_dict, analyze, noun_phrase_list
+    return analyze, noun_phrase_list
 
 
 
@@ -157,7 +158,7 @@ from text_preprocessing import text_preprocessing
 
 
 def main():
-    df = {"website": [], "content": [], "summary": [], "analyze": [], "noun_phrase_list": []}
+    df = []
     # url_list = ["https://bizdirectasia.com/", "https://stackoverflow.com/"]
     url_list = open("/home/ubuntu/tqtrinh/web2contact_matching/domain/networksdb.io-domains_sg.txt").read()
     url_list = [url for url in url_list.split("\n") if url != ""][:1000]
@@ -169,27 +170,33 @@ def main():
     count = 0
     for i, url in bar:
         start = time.time()
-        content = get_text_from_url(url, paragraph=True)
-        content = text_preprocessing(content) if isinstance(content, str) else ""
+        content = get_content_from_url(url, paragraph=True)
+        content = text_preprocessing(str(content))
         get_content_time.append(time.time() - start)
         
         # summary = summarize(model, tokenizer, [text])[0]
         start = time.time()
         len_tokens = len(tokenizer_fb.tokenize(content))
         summary_fb = {"summary_text": content} if len_tokens < 150 else summarize_fb(model_fb, content)
+        summary_or_not = "no_summary" if len_tokens < 150 else "summary"
 
-        try:
-            res, analyze, noun_phrase_list = analyze_text_syntax(summary_fb["summary_text"])
-            count += 1
-        except:
-            res, summary_fb, analyze, noun_phrase_list = {}, {"summary_text":""}, [], []
+        # try:
+        res, _ = analyze_text_syntax(summary_fb["summary_text"])
+        analyze, noun_phrase_list = get_noun_phrases(res)
+
+        # except:
+            # res, summary_fb, analyze, noun_phrase_list = {}, {"summary_text":""}, [], []
         extract_time.append(time.time() - start)
+        row = {
+            "website": url, 
+            "content": content, 
+            "summary": summary_fb["summary_text"], 
+            "summary_or_not": summary_or_not, 
+            "analyze": analyze, 
+            "noun_phrase_list": noun_phrase_list
+        }
+        df.append(row)
 
-        df["website"].append(url)
-        df["content"].append(content)
-        df["summary"].append(summary_fb["summary_text"])
-        df["analyze"].append(analyze)
-        df["noun_phrase_list"].append(noun_phrase_list)
         bar.set_description(f"Extracting... {count}/{len(url_list)}")
         bar.set_postfix(get_content_time=f"{sum(get_content_time)/len(get_content_time):.2f}", summurize_extract_time=f"{sum(extract_time)/len(extract_time):.2f}")
         pd.DataFrame(df).to_csv("100_urls_singapore_extract_keyword.csv", index=False)

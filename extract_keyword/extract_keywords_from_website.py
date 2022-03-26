@@ -161,7 +161,7 @@ def main():
     df = []
     # url_list = ["https://bizdirectasia.com/", "https://stackoverflow.com/"]
     url_list = open("/home/ubuntu/tqtrinh/web2contact_matching/domain/networksdb.io-domains_sg.txt").read()
-    url_list = [url for url in url_list.split("\n") if url != ""][:1000]
+    url_list = [url for url in url_list.split("\n") if url != ""][1:1000]
     model_fb, tokenizer_fb = load_model_tokenizer_fb()
     # model, tokenizer = load_model_tokenizer("sshleifer/distilbart-cnn-12-6")
     get_content_time, extract_time = [], []
@@ -172,18 +172,14 @@ def main():
         start = time.time()
         content = get_content_from_url(url, paragraph=True)
         content = text_preprocessing(str(content))
-        content = text_preprocessing(str(content))
         get_content_time.append(time.time() - start)
         
         # summary = summarize(model, tokenizer, [text])[0]
         start = time.time()
-        tokens = tokenizer_fb.tokenize(content)
-        content = " ".join(tokens[:2000])
-        try:
-            summary_fb = {"summary_text": content} if len(tokens) < 150 else summarize_fb(model_fb, content)
-        except:
-            import ipdb; ipdb.set_trace()
-        summary_or_not = "no_summary" if len(tokens) < 150 else "summary"
+        token_ids = tokenizer_fb.encode(content)[1:-1]
+        content = tokenizer_fb.decode(token_ids[1:2000])
+        summary_fb = {"summary_text": content} if len(token_ids) < 150 else summarize_fb(model_fb, content)
+        summary_or_not = "no_summary" if len(token_ids) < 150 else "summary"
 
         # try:
         res, _ = analyze_text_syntax(summary_fb["summary_text"])

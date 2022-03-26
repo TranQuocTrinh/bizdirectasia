@@ -185,12 +185,12 @@ def main():
             summary_fb = {"summary_text": content}
             summary_or_not = "no_summary"
 
-        # try:
-        res, _ = analyze_text_syntax(summary_fb["summary_text"])
-        analyze, noun_phrase_list = get_noun_phrases(res)
+        try:
+            res, _ = analyze_text_syntax(summary_fb["summary_text"])
+            analyze, noun_phrase_list = get_noun_phrases(res)
+        except Exception as e:
+            analyze, noun_phrase_list = [str(e)], []
 
-        # except:
-            # res, summary_fb, analyze, noun_phrase_list = {}, {"summary_text":""}, [], []
         extract_time.append(time.time() - start)
         row = {
             "website": url, 

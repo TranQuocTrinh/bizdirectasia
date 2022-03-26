@@ -177,7 +177,7 @@ def main():
         # summary = summarize(model, tokenizer, [text])[0]
         start = time.time()
         token_ids = tokenizer_fb.encode(content)[1:-1]
-        content = tokenizer_fb.decode(token_ids[:2000])
+        content = tokenizer_fb.decode(token_ids[:1022])
         try:
             summary_or_not = "no_summary" if len(token_ids) < 150 else "summary"
             summary_fb = {"summary_text": content} if len(token_ids) < 150 else summarize_fb(model_fb, content)

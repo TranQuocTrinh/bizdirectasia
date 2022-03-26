@@ -172,6 +172,7 @@ def main():
         start = time.time()
         content = get_content_from_url(url, paragraph=True)
         content = text_preprocessing(str(content))
+        content = text_preprocessing(str(content))
         get_content_time.append(time.time() - start)
         
         # summary = summarize(model, tokenizer, [text])[0]

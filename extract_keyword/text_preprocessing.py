@@ -115,7 +115,11 @@ nltk.download('words')
 words = set(nltk.corpus.words.words())
 def remove_non_english(text):
     return " ".join(w for w in nltk.wordpunct_tokenize(text) if w.lower() in words or not w.isalpha())
-            
+
+# remove space ahead punctuation
+def remove_space_ahead_punctuation(text):
+    text = re.sub(r"\s+([?.!;,:])", r"\1", text)
+    return text
 
 # preprocessing text
 def text_preprocessing(text):
@@ -139,4 +143,6 @@ def text_preprocessing(text):
     text = re.sub(r"\s+", " ", text)
     # remove leading and trailing spaces
     text = text.strip()
+    # remove space ahead punctuation
+    text = remove_space_ahead_punctuation(text)
     return text

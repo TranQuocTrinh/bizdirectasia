@@ -8,7 +8,7 @@ Output: BizDirect Asia is Asia's largest B2B contacts and companies data portal 
 ```
 
 # Collect data
-
+## Collect website and description from [cbinsights](https://cbinsights.com/)
 Path: data_collect/crawl_cbinsights.com.py
 
 For collecting data, use the following command:
@@ -21,10 +21,10 @@ The data will be saved in the data_collect/data_cbinsights.csv file.
 Some rows in the data_cbinsights.csv file shown below:
 
 ```
-In [22]: df = pd.read_csv("data_cbinsights.csv")
+In [1]: df = pd.read_csv("data_cbinsights.csv")
 
-In [23]: df
-Out[23]: 
+In [2]: df
+Out[2]: 
                       company_name                                                url  ...                                        description          source
 0       Center Point Manufacturing  https://www.cbinsights.com/company/center-poin...  ...  Center Point Manufacturing is a provider of Ho...  cbinsights.com
 1                          Navizon         https://www.cbinsights.com/company/navizon  ...  Navizon is a software provider for mobile devi...  cbinsights.com
@@ -39,5 +39,72 @@ Out[23]:
 629206              Alpha Clothing  https://www.cbinsights.com/company/alpha-clothing  ...  Alpha Clothing offers apparel manufacturing se...  cbinsights.com
 
 [629207 rows x 5 columns]
+```
+
+## Collect content from websites
+Path: data_collect/crawl_cbinsights.com.py
+
+For collecting data, use the following command:
+```bash
+python get_content.py --get_content
+```
+
+For check status of the crawler, use the following command:
+```bash
+python get_content.py --statis
+```
+
+# Model
+
+We use the LED model to summarize the content of the website. Specifically, we use the `allenai/led-base-16384` model.
+
+
+# Training
+
+For training, use the following command:
+```bash
+python train_clm.py \
+    --model_name_or_path allenai/led-base-16384 \
+    --do_train --do_eval --do_predict \
+    --output_dir led_web2desc \
+    --train_file data/train.csv \
+    --validation_file data/val.csv \
+    --test_file data/test.csv \
+    --num_epochs 10 \
+    --max_source_length 4096 \
+    --max_target_length 256 \
+    --logging_steps 20 \
+    --eval_steps 500 \
+    --save_steps 500 \
+    --batch_size 4 \
+    --batch_size_val 4 \
+    --overwrite_output_dir \
+    --early_stopping_patience 100 \
+    --metric_for_best_model rouge2 \
+```
+
+For debugging, use the following command:
+```bash
+python train_clm.py \
+    --model_name_or_path allenai/led-base-16384 \
+    --do_train --do_eval --do_predict \
+    --output_dir led_web2desc \
+    --train_file data/train.csv \
+    --validation_file data/val.csv \
+    --test_file data/test.csv \
+    --num_epochs 1 \
+    --max_source_length 4096 \
+    --max_target_length 256 \
+    --logging_steps 1 \
+    --eval_steps 2 \
+    --save_steps 2 \
+    --batch_size 1 \
+    --batch_size_val 1 \
+    --overwrite_output_dir \
+    --early_stopping_patience 100 \
+    --metric_for_best_model rouge2 \
+    --max_train_samples 1 \
+    --max_eval_samples 1 \
+    --max_predict_samples 1
 ```
 

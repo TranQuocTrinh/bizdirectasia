@@ -42,7 +42,14 @@ Out[2]:
 ```
 
 ## Collect content from websites
-Path: data_collect/crawl_cbinsights.com.py
+
+**workdir: ./data_collect/**
+
+For collecting data from cbinsights.com, use the following command:
+
+```bash
+python crawl_cbinsights.com.py
+```
 
 For collecting data, use the following command:
 ```bash
@@ -60,6 +67,8 @@ We use the LED model to summarize the content of the website. Specifically, we u
 
 
 # Training
+
+**workdir: ./src/**
 
 For training, use the following command:
 ```bash
@@ -108,3 +117,10 @@ python train_clm.py \
     --max_predict_samples 1
 ```
 
+# Inference
+
+For inference, use the following command:
+```bash
+python inference.py \
+    --model_path led_web2desc
+```

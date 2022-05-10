@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import logging
 from torch.utils.data import dataset
-from datasets import load_dataset, load_metric
+from datasets import load_metric
 from transformers import (
     LEDForConditionalGeneration,
     LEDConfig,
@@ -16,7 +16,7 @@ from transformers import (
 )
 
 from transformers.trainer_utils import get_last_checkpoint
-from transformers.utils import check_min_version, is_offline_mode
+from transformers.utils import is_offline_mode
 from filelock import FileLock
 
 
@@ -33,6 +33,48 @@ except (LookupError, OSError):
         )
     with FileLock(".lock") as lock:
         nltk.download("punkt", quiet=True)
+
+
+def preprocess_text(text):
+    import re
+    from nltk.stem import WordNetLemmatizer
+    from nltk.tokenize import word_tokenize
+    from bs4 import BeautifulSoup
+    def clean_html(html):
+        soup = BeautifulSoup(html, "html.parser")
+        for data in soup(['style', 'script', 'code', 'a']):
+            data.decompose()
+        return ' '.join(soup.stripped_strings)
+
+    processed_text = str(text).strip()
+    # clean html
+    processed_text = clean_html(processed_text)
+    # tokenize
+    processed_text = word_tokenize(processed_text)
+    processed_text = ' '.join(processed_text)
+    # remove non-ascii characters
+    processed_text = re.sub(r'[^\x00-\x7F]+', ' ', processed_text)
+    # remove duplicate punctuation
+    processed_text = re.sub(r'([!?,.()])\1+', r'\1', processed_text)
+    # remove spaces before punctuation
+    processed_text = re.sub(r'\s+([!?,.()])', r'\1', processed_text)
+    # remove spaces
+    processed_text = " ".join(processed_text.split())
+    # remove all single characters
+    processed_text = re.sub(r'\s+[a-zA-Z]\s+', ' ', processed_text)
+    # Remove single characters from the start
+    processed_text = re.sub(r'\^[a-zA-Z]\s+', ' ', processed_text)
+    # Substituting multiple spaces with single space
+    processed_text = re.sub(r'\s+', ' ', processed_text)
+    # Removing prefixed 'b'
+    processed_text = re.sub(r'^b\s+', '', processed_text)
+    # Lemmatization
+    processed_text = processed_text.split()
+    lemmatizer = WordNetLemmatizer()
+    processed_text = [lemmatizer.lemmatize(word) for word in processed_text]
+    processed_text = ' '.join(processed_text)
+
+    return processed_text
 
 
 class Seq2SeqDataset(dataset.Dataset):
@@ -53,30 +95,40 @@ class Seq2SeqDataset(dataset.Dataset):
         self.prefix = prefix if prefix is not None else ""
         self.split = split
         if path_df is None:
-            self.df = load_dataset('cnn_dailymail', '3.0.0', ignore_verifications=True, split=split).to_pandas()
+            raise ValueError("path_df is required")
         else:
             self.df = pd.read_csv(path_df).reset_index(drop=True)
 
         if max_samples is not None:
+            logger.info(f"Sampling {max_samples} samples of total {len(self.df)}")
             self.df = self.df.sample(n=max_samples, random_state=42).reset_index(drop=True)
 
 
     def __len__(self):
         return len(self.df)
+    
 
     def __getitem__(self, index):
+        # If split is train or val, we need to return labels too, and split is test, we don't need labels
         input_text = self.df.loc[index, self.text_column]
-        output_text = self.df.loc[index, self.summary_column]
+        input_text = preprocess_text(input_text)
+        if self.split in {"train", "val"}:
+            output_text = self.df.loc[index, self.summary_column]
+            output_text = preprocess_text(output_text)
         
         input_text = self.prefix + input_text
-        model_inputs = self.tokenizer(input_text, max_length=self.max_source_length, padding="max_length", truncation=True)
+        model_inputs = self.tokenizer(
+            input_text, max_length=self.max_source_length, padding="max_length", truncation=True
+        )
 
-        # Setup the tokenizer for target
-        with self.tokenizer.as_target_tokenizer():
-            label = self.tokenizer(output_text, max_length=self.max_target_length, padding="max_length", truncation=True)
+        if self.split in {"train", "val"}:
+            # Setup the tokenizer for target
+            with self.tokenizer.as_target_tokenizer():
+                label = self.tokenizer(
+                    output_text, max_length=self.max_target_length, padding="max_length", truncation=True
+                )
 
-        label["input_ids"] = [-100 if l == self.tokenizer.pad_token_id else l for l in label["input_ids"]]
-        if self.split in {"train", "val", "test"}:
+            label["input_ids"] = [-100 if l == self.tokenizer.pad_token_id else l for l in label["input_ids"]]
             model_inputs["labels"] = label["input_ids"]
 
         return model_inputs
@@ -115,7 +167,6 @@ def main():
     parser.add_argument("--max_predict_samples", type=int, default=None, help="Maximum number of prediction samples to use.")
     # Output
     parser.add_argument("--output_dir", default="led_web2desc", type=str, help="The output directory where the model predictions and checkpoints will be written.")
-    # Setting save 2 last checkpoint and save best checkpoint
     parser.add_argument("--save_total_limit", type=int, default=2, help="If we save total_limit checkpoints, delete the older checkpoints")
     parser.add_argument("--load_best_model_at_end", default=True, action="store_true", help="Save only the best checkpoint in the output directory")
     parser.add_argument("--metric_for_best_model", default="loss", type=str, help="Metric to use for saving best model")
@@ -127,7 +178,7 @@ def main():
     # special_tokens = ["[language]", "[\language]", "[correct]", "[\correct]", "[problem]", "[\problem]", "[incorrect]", "[\incorrect]"]
     # tokenizer.add_special_tokens({"additional_special_tokens": special_tokens})
     # model.resize_token_embeddings(len(tokenizer))
-    print(model)
+
     training_args = Seq2SeqTrainingArguments(
         output_dir=config.output_dir,
         do_train=config.do_train,
@@ -150,8 +201,8 @@ def main():
         load_best_model_at_end=config.load_best_model_at_end,
         metric_for_best_model=config.metric_for_best_model,
     )
-    print("------- Training arguments -------")
-    print(training_args)
+    logger.info("------- Training arguments -------")
+    logger.info(training_args)
 
     # Detecting last checkpoint.
     last_checkpoint = None
@@ -242,7 +293,7 @@ def main():
         max_source_length=config.max_source_length,
         max_target_length=config.max_target_length,
         max_samples=config.max_predict_samples,
-        split="test",
+        split="val",
     )
 
     # Data collator
@@ -265,7 +316,7 @@ def main():
     )
 
     params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Total trainable parameters: {params}")
+    logger.info(f"Total trainable parameters: {params}")
 
     # Training
     if training_args.do_train:

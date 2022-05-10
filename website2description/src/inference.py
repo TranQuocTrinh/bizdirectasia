@@ -1,33 +1,17 @@
-import os
-import numpy as np
-import pandas as pd
-import logging
 import torch
-from torch.utils.data import dataset
-from datasets import load_dataset, load_metric
 from transformers import (
     LEDForConditionalGeneration,
-    LEDConfig,
     LEDTokenizer,
-    Seq2SeqTrainingArguments,
-    Seq2SeqTrainer,
-    set_seed,
-    EarlyStoppingCallback,
-    DataCollatorForSeq2Seq
 )
 
-logger = logging.getLogger(__name__)
 
 def main():
     import argparse
     parser = argparse.ArgumentParser()
     # Input
-    parser.add_argument("--test_file", type=str, default=None, help="Path to test file.")
     parser.add_argument("--model_path", type=str, default=None, help="Path to model.")
     parser.add_argument("--max_source_length", default=4096, type=int, help="Maximum length of the source sequence")
-    parser.add_argument("--max_target_length", default=256, type=int, help="Maximum length of the target sequence")
-    # Output
-    parser.add_argument("--output_path", type=str, default=None, help="Path to output file.")
+    parser.add_argument("--max_target_length", default=128, type=int, help="Maximum length of the target sequence")
     args = parser.parse_args()
 
     # Load model, tokenizer
@@ -38,15 +22,29 @@ def main():
     print("Model to device:", devive)
     model.to(devive)
 
-    # Load test data
-    df = pd.read_csv(args.test_file)
-    predictions = []
-    bar = tqdm(df.iterrows(), total=len(df))
-    with torch.no_grad():
-        for i, row in bar:
+    from get_content import get_content_company
+    from train_clm import preprocess_text
+    while True:
+        website = input(">>>>website (example: https://www.bizdirectasia.com, press q to quit): ")
+        if website == "":
+            print("Please input website")
+            continue
+        if website == "q":
+            break
+        input_text = get_content_company(website)
+        if input_text is None:
+            print("------ Can't get content!")
+            continue
+        input_text = preprocess_text(input_text)
+        print("------ Content:", input_text)
+        with torch.no_grad():
             # Tokenize
             inputs = tokenizer(
-                input_text, max_length=args.max_source_length, padding="max_length", truncation=True, return_tensors="pt"
+                input_text, 
+                max_length=args.max_source_length, 
+                padding="max_length", 
+                truncation=True, 
+                return_tensors="pt"
             )
             # To device
             inputs = {k: v.to(devive) for k, v in inputs.items()}
@@ -54,19 +52,18 @@ def main():
             output = model.generate(
                 **inputs, 
                 max_length=args.max_target_length, 
-                temperature=1.0, 
-                no_repeat_ngram_size=3,
+                temperature=0.8, 
+                no_repeat_ngram_size=4,
                 do_sample=True,
                 early_stopping=True,
-                num_return_sequences=1
+                num_return_sequences=1,
+                min_length=50,
             )
             # Decode
-            output = tokenizer.decode(output[0], skip_special_tokens=True)
-            precisions.append(output)
-        
-    # Save results
-    df["predictions"] = predictions
-    df.to_csv(args.output_path, index=False)
+            desc = tokenizer.decode(output[0], skip_special_tokens=True)
+            desc = desc.strip().split("\n")[0]
+            desc = ".".join(desc.split(".")[:-1])+"."
+        print("------ Description:", desc)
 
 
 if __name__ == "__main__":

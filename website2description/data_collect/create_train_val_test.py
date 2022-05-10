@@ -11,7 +11,7 @@ print(df)
 def main():
     # Load data
     cache_dir = "/home/pvduy/tqtrinh/bizdirectasia/website2description/data_collect/cache_cbinsights_content"
-    files = os.listdir(cache_dir)[:10000]
+    files = os.listdir(cache_dir)
     bar = tqdm(files, total=len(files), desc="Loading data")
     data = []
     for file in bar:
@@ -51,9 +51,9 @@ def main():
     data = data[['company_name', 'website', 'description', 'content', 'about_us_url', 'about_us_content', 'url', 'source', 'language']]
 
     # Split train, val, test
-    test = data.sample(n=500, random_state=42)
+    test = data.sample(n=5000, random_state=42)
     train = data.drop(test.index)
-    train, val = train_test_split(train, test_size=0.2, random_state=42)
+    train, val = train_test_split(train, test_size=0.1, random_state=42)
     train, val, test = train.reset_index(drop=True), val.reset_index(drop=True), test.reset_index(drop=True)
     if not os.path.exists("../src/data"):
         os.mkdir("../src/data")
@@ -67,8 +67,6 @@ def main():
     import ipdb; ipdb.set_trace()
     return data
 
-def preprocess_text(text):
-    pass
 
 if __name__ == "__main__":
     main()

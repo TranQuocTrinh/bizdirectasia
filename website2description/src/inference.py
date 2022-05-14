@@ -22,8 +22,7 @@ def main():
     print("Model to device:", devive)
     model.to(devive)
 
-    from get_content import get_content_company
-    from train_clm import preprocess_text
+    from utils import get_content_company, preprocess_text
     while True:
         website = input(">>>>website (example: https://www.bizdirectasia.com, press q to quit): ")
         if website == "":

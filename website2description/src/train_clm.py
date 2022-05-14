@@ -16,65 +16,12 @@ from transformers import (
 )
 
 from transformers.trainer_utils import get_last_checkpoint
-from transformers.utils import is_offline_mode
-from filelock import FileLock
 
 
 logger = logging.getLogger(__name__)
 
 
 import nltk
-try:
-    nltk.data.find("tokenizers/punkt")
-except (LookupError, OSError):
-    if is_offline_mode():
-        raise LookupError(
-            "Offline mode: run this script without TRANSFORMERS_OFFLINE first to download nltk data files"
-        )
-    with FileLock(".lock") as lock:
-        nltk.download("punkt", quiet=True)
-
-
-def preprocess_text(text):
-    import re
-    from nltk.stem import WordNetLemmatizer
-    from nltk.tokenize import word_tokenize
-    from bs4 import BeautifulSoup
-    def clean_html(html):
-        soup = BeautifulSoup(html, "html.parser")
-        for data in soup(['style', 'script', 'code', 'a']):
-            data.decompose()
-        return ' '.join(soup.stripped_strings)
-
-    processed_text = str(text).strip()
-    # clean html
-    processed_text = clean_html(processed_text)
-    # tokenize
-    processed_text = word_tokenize(processed_text)
-    processed_text = ' '.join(processed_text)
-    # remove non-ascii characters
-    processed_text = re.sub(r'[^\x00-\x7F]+', ' ', processed_text)
-    # remove duplicate punctuation
-    processed_text = re.sub(r'([!?,.()])\1+', r'\1', processed_text)
-    # remove spaces before punctuation
-    processed_text = re.sub(r'\s+([!?,.()])', r'\1', processed_text)
-    # remove spaces
-    processed_text = " ".join(processed_text.split())
-    # remove all single characters
-    processed_text = re.sub(r'\s+[a-zA-Z]\s+', ' ', processed_text)
-    # Remove single characters from the start
-    processed_text = re.sub(r'\^[a-zA-Z]\s+', ' ', processed_text)
-    # Substituting multiple spaces with single space
-    processed_text = re.sub(r'\s+', ' ', processed_text)
-    # Removing prefixed 'b'
-    processed_text = re.sub(r'^b\s+', '', processed_text)
-    # Lemmatization
-    processed_text = processed_text.split()
-    lemmatizer = WordNetLemmatizer()
-    processed_text = [lemmatizer.lemmatize(word) for word in processed_text]
-    processed_text = ' '.join(processed_text)
-
-    return processed_text
 
 
 class Seq2SeqDataset(dataset.Dataset):
@@ -107,14 +54,17 @@ class Seq2SeqDataset(dataset.Dataset):
     def __len__(self):
         return len(self.df)
     
-
+    def preprocess_text(self, text):
+        from utils import preprocess_text
+        return preprocess_text(text)
+        
     def __getitem__(self, index):
         # If split is train or val, we need to return labels too, and split is test, we don't need labels
         input_text = self.df.loc[index, self.text_column]
-        input_text = preprocess_text(input_text)
+        input_text = self.preprocess_text(input_text)
         if self.split in {"train", "val"}:
             output_text = self.df.loc[index, self.summary_column]
-            output_text = preprocess_text(output_text)
+            output_text = self.preprocess_text(output_text)
         
         input_text = self.prefix + input_text
         model_inputs = self.tokenizer(

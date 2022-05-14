@@ -146,7 +146,7 @@ def get_content_about_us(website, cache_dir, pba=None):
         pba.update.remote(1)
     return rep
 
-def get_content():
+def get_content(num_threads):
     df = pd.read_csv("data_cbinsights.csv")
     cache_dir = "cache_cbinsights_content"
     if not os.path.exists(cache_dir):
@@ -163,7 +163,7 @@ def get_content():
     else:
         start_time = time.time()
         ray.shutdown()
-        ray.init(num_cpus=32)
+        ray.init(num_cpus=num_threads)
         from progress_bar import ProgressBar
         pb = ProgressBar(len(df))
         task = [get_content_about_us.remote(website, cache_dir, pba=pb.actor) for website in tqdm(df["website"], desc="Adding tasks get_content_about_us")]
@@ -183,10 +183,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--statis", action="store_true", default=False)
     parser.add_argument("--get_content", action="store_true", default=False)
+    parser.add_argument("--num_threads", action="store", type=int, default=32)
     args = parser.parse_args()
     
     if args.get_content:
-        get_content()
+        get_content(num_threads=args.num_threads)
     elif args.statis:
         statis_content()
     else:

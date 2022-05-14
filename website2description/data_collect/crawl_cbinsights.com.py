@@ -23,7 +23,7 @@ def crawl_by_sitemap(url="https://www.cbinsights.com/sitemap/sitemap_master.xml"
         company_urls = []
         for url in tqdm(urls):
             soup = BeautifulSoup(requests.get(url).text, "xml")
-            
+
             company_urls.extend([url.text for url in soup.find_all("loc")])
 
     print("Found {} company urls".format(len(company_urls)))
@@ -106,7 +106,7 @@ def crawl_cbinsights():
     df.to_csv("data_cbinsights.csv", index=False)
     
 
-def statis_cbinsights():
+def statis_cbinsights(cache_dir="cache_cbinsights"):
     files = set()
     company_urls = crawl_by_sitemap()
     df = []
@@ -135,17 +135,12 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--statis_cbinsights", action="store_true", default=False)
-    parser.add_argument("--statis_content", action="store_true", default=False)
     parser.add_argument("--crawl", action="store_true", default=False)
     parser.add_argument("--get_content", action="store_true", default=False)
     args = parser.parse_args()
     if args.crawl:
         crawl_cbinsights()
-    elif args.get_content:
-        get_content()
     elif args.statis_cbinsights:
         statis_cbinsights()
-    elif args.statis_content:
-        statis_content()
     else:
         print("No argument")

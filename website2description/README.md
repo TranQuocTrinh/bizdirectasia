@@ -75,12 +75,12 @@ For training, use the following command:
 python train_clm.py \
     --model_name_or_path allenai/led-base-16384 \
     --do_train --do_eval --do_predict \
-    --output_dir led_web2desc \
+    --output_dir web2des-led \
     --train_file data/train.csv \
     --validation_file data/val.csv \
     --test_file data/test.csv \
-    --num_epochs 10 \
-    --max_source_length 4096 \
+    --num_epochs 1 \
+    --max_source_length 2048 \
     --max_target_length 256 \
     --logging_steps 20 \
     --eval_steps 500 \
@@ -89,7 +89,7 @@ python train_clm.py \
     --batch_size_val 4 \
     --overwrite_output_dir \
     --early_stopping_patience 100 \
-    --metric_for_best_model rouge2 \
+    --metric_for_best_model rouge2 
 ```
 
 For debugging, use the following command:
@@ -97,12 +97,12 @@ For debugging, use the following command:
 python train_clm.py \
     --model_name_or_path allenai/led-base-16384 \
     --do_train --do_eval --do_predict \
-    --output_dir led_web2desc \
+    --output_dir web2des-led \
     --train_file data/train.csv \
     --validation_file data/val.csv \
     --test_file data/test.csv \
     --num_epochs 1 \
-    --max_source_length 4096 \
+    --max_source_length 2048 \
     --max_target_length 256 \
     --logging_steps 1 \
     --eval_steps 2 \

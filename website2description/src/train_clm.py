@@ -5,9 +5,9 @@ import logging
 from torch.utils.data import dataset
 from datasets import load_metric
 from transformers import (
-    LEDForConditionalGeneration,
-    LEDConfig,
-    LEDTokenizer,
+    AutoModelForSeq2SeqLM,
+    AutoConfig,
+    AutoTokenizer,
     Seq2SeqTrainingArguments,
     Seq2SeqTrainer,
     set_seed,
@@ -16,7 +16,9 @@ from transformers import (
 )
 
 from transformers.trainer_utils import get_last_checkpoint
+import wandb
 
+wandb.init(project="web2des-led", entity="trinh-biz")
 
 logger = logging.getLogger(__name__)
 
@@ -123,8 +125,8 @@ def main():
     config = parser.parse_args()
     
     # Load model and tokenizer
-    model = LEDForConditionalGeneration.from_pretrained(config.model_name_or_path)
-    tokenizer = LEDTokenizer.from_pretrained(config.model_name_or_path)
+    model = AutoModelForSeq2SeqLM.from_pretrained(config.model_name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(config.model_name_or_path)
     # special_tokens = ["[language]", "[\language]", "[correct]", "[\correct]", "[problem]", "[\problem]", "[incorrect]", "[\incorrect]"]
     # tokenizer.add_special_tokens({"additional_special_tokens": special_tokens})
     # model.resize_token_embeddings(len(tokenizer))
@@ -245,6 +247,10 @@ def main():
         max_samples=config.max_predict_samples,
         split="val",
     )
+    print(f"Model name or path: {config.model_name_or_path}")
+    print(f"Train dataset size: {len(train_dataset)}")
+    print(f"Eval dataset size: {len(eval_dataset)}")
+    print(f"Predict dataset size: {len(predict_dataset)}")
 
     # Data collator
     ignore_pad_token_for_loss = True
@@ -266,7 +272,7 @@ def main():
     )
 
     params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.info(f"Total trainable parameters: {params}")
+    print(f"Total trainable parameters: {params}")
 
     # Training
     if training_args.do_train:

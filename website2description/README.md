@@ -7,6 +7,28 @@ Input: https://bizdirectasia.com/
 Output: BizDirect Asia is Asia's largest B2B contacts and companies data portal emcompassed more than 18+ millions companies and 90 millions contacts across 1,000+ industries in 16 countries in Asia. Updated in real-time by our proprietary AI-powered system.
 ```
 
+# Directory structure
+```
+web2description
+├── README.md
+├── data_collect
+│   ├── crawl_cbinsights.com.py
+│   ├── create_train_val_test.py
+│   ├── get_content.py
+│   └── progress_bar.py
+└── src
+    ├── data
+    │   ├── data_analysis.ipynb
+    │   ├── test.csv
+    │   ├── train.csv
+    │   └── val.csv
+    ├── data_clean
+    ├── inference.py
+    ├── train_clm.py
+    ├── utils.py
+    └── web2des-led
+```
+
 # Collect data
 ## Collect website and description from [cbinsights](https://cbinsights.com/)
 Path: data_collect/crawl_cbinsights.com.py
@@ -75,18 +97,18 @@ For training, use the following command:
 python train_clm.py \
     --model_name_or_path allenai/led-base-16384 \
     --do_train --do_eval --do_predict \
-    --output_dir web2des-led \
-    --train_file data/train.csv \
-    --validation_file data/val.csv \
-    --test_file data/test.csv \
-    --num_epochs 1 \
-    --max_source_length 2048 \
+    --output_dir web2des-led-filtered \
+    --train_file data/train_filtered.csv \
+    --validation_file data/val_filtered.csv \
+    --test_file data/test_filtered.csv \
+    --num_epochs 3 \
+    --max_source_length 1024 \
     --max_target_length 256 \
-    --logging_steps 20 \
-    --eval_steps 500 \
-    --save_steps 500 \
-    --batch_size 4 \
-    --batch_size_val 4 \
+    --logging_steps 100 \
+    --eval_steps 3000 \
+    --save_steps 3000 \
+    --batch_size 6 \
+    --batch_size_val 6 \
     --overwrite_output_dir \
     --early_stopping_patience 100 \
     --metric_for_best_model rouge2 
@@ -107,9 +129,8 @@ python train_clm.py \
     --logging_steps 1 \
     --eval_steps 2 \
     --save_steps 2 \
-    --batch_size 1 \
-    --batch_size_val 1 \
-    --overwrite_output_dir \
+    --batch_size 4 \
+    --batch_size_val 4 \
     --early_stopping_patience 100 \
     --metric_for_best_model rouge2 \
     --max_train_samples 1 \

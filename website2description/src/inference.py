@@ -12,13 +12,15 @@ def main():
     parser.add_argument("--model_path", type=str, default=None, help="Path to model.")
     parser.add_argument("--max_source_length", default=4096, type=int, help="Maximum length of the source sequence")
     parser.add_argument("--max_target_length", default=128, type=int, help="Maximum length of the target sequence")
+    parser.add_argument("--device", default="cuda", type=str, help="Device to use")
     args = parser.parse_args()
 
     # Load model, tokenizer
     tokenizer = LEDTokenizer.from_pretrained(args.model_path)
     model = LEDForConditionalGeneration.from_pretrained(args.model_path)
     model.eval()
-    devive = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    devive = torch.device("cuda" if torch.cuda.is_available() and args.device == "cuda" else "cpu")
     print("Model to device:", devive)
     model.to(devive)
 
@@ -35,7 +37,11 @@ def main():
             print("------ Can't get content!")
             continue
         input_text = preprocess_text(input_text)
+        if len(input_text) == 0:
+            print("------ Can't get content!")
+            continue
         print("------ Content:", input_text)
+        
         with torch.no_grad():
             # Tokenize
             inputs = tokenizer(

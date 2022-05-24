@@ -120,10 +120,20 @@ def preprocess_text(text):
         for data in soup(['style', 'script', 'code', 'a']):
             data.decompose()
         return ' '.join(soup.stripped_strings)
+    # remove words with length > 20
+    text = re.sub(r'\b\w{11,}\b', '', text)
 
     processed_text = str(text).strip()
     # clean html
     processed_text = clean_html(processed_text)
+    # remove text between { and }
+    processed_text = re.sub(r"\{.*?\}", "", processed_text)
+    # remove text between [ and ]
+    processed_text = re.sub(r"\[.*?\]", "", processed_text)
+    # remove repeated punctuation
+    def remove_repeated_punctuation(text):
+        return re.sub(r"([,!?!\"#$%&\'\(\)*+,-./:;<=>?@\[\\\]^_`\{|\}~])\1+", r"\1", text)
+    
     # tokenize
     processed_text = word_tokenize(processed_text)
     processed_text = ' '.join(processed_text)
@@ -148,5 +158,7 @@ def preprocess_text(text):
     lemmatizer = WordNetLemmatizer()
     processed_text = [lemmatizer.lemmatize(word) for word in processed_text]
     processed_text = ' '.join(processed_text)
+    processed_text = remove_repeated_punctuation(processed_text)
+    processed_text = " ".join(processed_text.split())
 
     return processed_text

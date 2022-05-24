@@ -118,7 +118,7 @@ def main():
     parser.add_argument("--max_eval_samples", type=int, default=None, help="Maximum number of evaluation samples to use.")
     parser.add_argument("--max_predict_samples", type=int, default=None, help="Maximum number of prediction samples to use.")
     # Output
-    parser.add_argument("--output_dir", default="led_web2desc", type=str, help="The output directory where the model predictions and checkpoints will be written.")
+    parser.add_argument("--output_dir", default="web2des-led", type=str, help="The output directory where the model predictions and checkpoints will be written.")
     parser.add_argument("--save_total_limit", type=int, default=2, help="If we save total_limit checkpoints, delete the older checkpoints")
     parser.add_argument("--load_best_model_at_end", default=True, action="store_true", help="Save only the best checkpoint in the output directory")
     parser.add_argument("--metric_for_best_model", default="loss", type=str, help="Metric to use for saving best model")
@@ -281,6 +281,7 @@ def main():
             checkpoint = training_args.resume_from_checkpoint
         elif last_checkpoint is not None:
             checkpoint = last_checkpoint
+            logger.info(f"Last checkpoint found: {last_checkpoint}")
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         trainer.save_model()  # Saves the tokenizer too for easy upload
 

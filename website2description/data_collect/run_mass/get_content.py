@@ -13,7 +13,7 @@ import sys
 import urllib
 
 
-def get_html_from_url(website, output_dir="", timeout=15):
+def get_html_from_url(website, timeout):
     st = time.time()
     # try:
     #     response = requests.get(website, timeout=timeout, stream=False)
@@ -91,7 +91,7 @@ def process_content(content, min_length_paragraph=50, max_length_paragraph=20000
     content = "\n".join([p for p in new_content if max_length_paragraph > len(p) > min_length_paragraph])
     return content
 
-def get_content_company(website, min_length_paragraph=50, timeout=15):   
+def get_content_company(website, min_length_paragraph=50, timeout=30):   
     extractor = extractors.KeepEverythingExtractor()
     html = get_html_from_url(website, timeout=timeout)
     try:
@@ -104,7 +104,7 @@ def get_content_company(website, min_length_paragraph=50, timeout=15):
 def get_about_us_link(website):
     """Extract link of about-us page from company website"""
     template = ["about-us", "about", "aboutus", "about-us", "about-us.html", "about.html", "aboutus.html"]
-    response = get_html_from_url(website)
+    response = get_html_from_url(website, timeout=timeout)
     if response is None:
         return ""
     soup = BeautifulSoup(response, 'html.parser')
@@ -145,13 +145,13 @@ def get_content_about_us(row, cache_dir, pba=None):
         #     # "about_us_content": content_about_us,
         # }
         json.dump(rep, open(cache_file, "w"))
-        
+
     if pba is not None:
         pba.update.remote(1)
     return rep
 
 def get_content(num_threads, path_df, cache_dir):
-    df = pd.read_csv(path_df).sample(frac=0.001).reset_index(drop=True)
+    df = pd.read_csv(path_df)#.sample(frac=0.001).reset_index(drop=True)
     print(df.head())
     print("df.columns", df.columns)
     print("df.shape:", df.shape)
@@ -173,14 +173,14 @@ def get_content(num_threads, path_df, cache_dir):
         ray.init(num_cpus=num_threads)
         from progress_bar import ProgressBar
         pb = ProgressBar(len(df))
-        task = [get_content_about_us.remote(row, cache_dir, pba=pb.actor) for row in tqdm(df.iterrows(), total=df.shape[0], desc="Adding tasks get_content_about_us")]
+        task = [get_content_about_us.remote(row, cache_dir, pba=pb.actor) for i,row in tqdm(df.iterrows(), total=df.shape[0], desc="Adding tasks get_content_about_us")]
         pb.print_until_done()
         data = ray.get(task)
         print("Time use ray:", str(datetime.timedelta(seconds = int(time.time() - start_time))))
 
     df["content"] = [d["content"] for d in data]
-    df["about_us_url"] = [d["about_us_url"] for d in data]
-    df["about_us_content"] = [d["about_us_content"] for d in data]
+    # df["about_us_url"] = [d["about_us_url"] for d in data]
+    # df["about_us_content"] = [d["about_us_content"] for d in data]
     df = pd.DataFrame(df)
     output_path = os.path.join("./content/", path_df.split("/")[-1].split("_")[0] + "_content.csv")
     df.to_csv(output_path, index=False)
@@ -207,3 +207,7 @@ def main():
     
 if __name__ == "__main__":
     main()
+
+
+# python get_content.py --get_content --path_df=./country/singapore_website.csv --cache_dir=cache_content/ --num_threads=64
+# python get_content.py --statis --cache_dir=cache_content/

@@ -96,7 +96,7 @@ def textsum_spacy(text, num_sents=3):
 from gensim.summarization import summarize
 
 def textsum_getsim(text):
-    summ = summarize(text, word_count=100)
+    summ = summarize(text, word_count=100 if len(text.split(' ')) > 100 else len(text.split(' ')))
     return summ
 
 # from pyteaser import Summarize
@@ -161,12 +161,30 @@ df["summary_luhn"] = ""
 
 for i,r in tqdm(df.iterrows(), total=len(df), desc="textsum"):
     content = r["content"]
-    df.loc[i, "summary_nltk"] = textsum_nltk(content)
-    df.loc[i, "summary_spacy"] = textsum_spacy(content)
-    df.loc[i, "summary_getsim"] = textsum_getsim(content)
-    df.loc[i, "summary_lex"] = textsum_lex(content)
-    df.loc[i, "summary_lsa"] = textsum_lsa(content)
-    df.loc[i, "summary_luhn"] = textsum_luhn(content)
+    try:
+        df.loc[i, "summary_nltk"] = textsum_nltk(content)
+    except:
+        df.loc[i, "summary_nltk"] = "error"
+    try:
+        df.loc[i, "summary_spacy"] = textsum_spacy(content)
+    except:
+        df.loc[i, "summary_spacy"] = "error"
+    try:
+        df.loc[i, "summary_getsim"] = textsum_getsim(content)
+    except:
+        df.loc[i, "summary_getsim"] = "error"
+    try:
+        df.loc[i, "summary_lex"] = textsum_lex(content)
+    except:
+        df.loc[i, "summary_lex"] = "error"
+    try:
+        df.loc[i, "summary_lsa"] = textsum_lsa(content)
+    except:
+        df.loc[i, "summary_lsa"] = "error"
+    try:
+        df.loc[i, "summary_luhn"] = textsum_luhn(content)
+    except:
+        df.loc[i, "summary_luhn"] = "error"
 
 df = df[['company_id', 'company_key', 'company_name', 'website', 'content', 'summary_nltk', 'summary_spacy', 'summary_getsim', 'summary_lex', 'summary_lsa', 'summary_luhn']]
 df.to_csv("500_singapore_content_summary.csv", index=False)
